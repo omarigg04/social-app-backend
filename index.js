@@ -4,21 +4,27 @@ const cors = require('cors');
 
 const authRoutes = require('./routes/auth');
 const postsRoutes = require('./routes/posts');
+const userRoutes = require('./routes/userRoutes');
 const errorController = require('./controllers/error');
 
 const app = express();
-
 const ports = process.env.PORT || 3000;
 
 app.use(bodyParser.json());
 
-// Configuración CORS con el paquete cors
-app.use(cors({
-  origin: 'https://social-app-frontend-delta.vercel.app', // Cambia esto a la URL de tu frontend
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Accept', 'X-Custom-Header', 'Authorization']
-}));
+// Configuración de CORS
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept, X-Custom-Header, Authorization');
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  next();
+});
 
+// Define tus rutas después de configurar CORS
+app.use('/api/users', userRoutes);
 app.use('/auth', authRoutes);
 app.use('/post', postsRoutes);
 
