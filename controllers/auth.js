@@ -1,74 +1,71 @@
-const { validationResult } = require('express-validator');
-
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-
-const User = require('../models/user');
+const { createClient } = require('@supabase/supabase-js');
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY
+);
 
 exports.signup = async (req, res, next) => {
-  const errors = validationResult(req);
-
-  if (!errors.isEmpty()) return;
-
-  const name = req.body.name;
-  const email = req.body.email;
-  const password = req.body.password;
+  const { email, password, name } = req.body;
 
   try {
-    const hashedPassword = await bcrypt.hash(password, 12);
+    // Registra al usuario en Supabase
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { name } // Datos adicionales que quieras guardar en Supabase
+      }
+    });
 
-    const userDetails = {
-      name: name,
-      email: email,
-      password: hashedPassword,
-    };
-
-    const result = await User.save(userDetails);
-
-    res.status(201).json({ message: 'User registered!' });
-  } catch (err) {
-    if (!err.statusCode) {
-      err.statusCode = 500;
+    if (error) {
+      throw error;
     }
+
+    // Respuesta exitosa
+    res.status(201).json({ message: '¡Usuario registrado!', user: data.user });
+  } catch (err) {
     next(err);
   }
 };
 
 exports.login = async (req, res, next) => {
-  const email = req.body.email;
-  const password = req.body.password;
+  const { email, password } = req.body;
+
   try {
-    const user = await User.find(email);
+    // Inicia sesión en Supabase
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
 
-    if (user[0].length !== 1) {
-      const error = new Error('A user with this email could not be found.');
-      error.statusCode = 401;
-      throw error;
+    if (error) {
+      const err = new Error('Credenciales inválidas');
+      err.statusCode = 401;
+      throw err;
     }
 
-    const storedUser = user[0][0];
-
-    const isEqual = await bcrypt.compare(password, storedUser.password);
-
-    if (!isEqual) {
-      const error = new Error('Wrong password!');
-      error.statusCode = 401;
-      throw error;
-    }
-
-    const token = jwt.sign(
-      {
-        email: storedUser.email,
-        userId: storedUser.id,
-      },
-      'secretfortoken',
-      { expiresIn: '1h' }
-    );
-    res.status(200).json({ token: token, userId: storedUser.id });
+    // Respuesta exitosa
+    res.status(200).json({ 
+      token: data.session.access_token, // Usa el access_token de Supabase
+      userId: data.user.id // Usa el ID de Supabase
+    });
   } catch (err) {
-    if (!err.statusCode) {
-      err.statusCode = 500;
+    next(err);
+  }
+};
+
+exports.logout = async (req, res, next) => {
+  try {
+    // Cierra la sesión en Supabase
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      throw error;
     }
+
+    // Respuesta exitosa
+    res.status(200).json({ message: '¡Sesión cerrada!' });
+  } catch (err) {
     next(err);
   }
 };
